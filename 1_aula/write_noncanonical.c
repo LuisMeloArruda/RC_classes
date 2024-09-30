@@ -105,15 +105,12 @@ int main(int argc, char *argv[])
     buf[2] = SET;
     buf[3] = buf[1] ^ buf[2];
     buf[4] = FLAG;
- 
-    printf("var = 0x%02X\n", buf[0]);
 
     // In non-canonical mode, '\n' does not end the writing.
     // Test this condition by placing a '\n' in the middle of the buffer.
     // The whole buffer must be sent even with the '\n'.
 
     int bytes = write(fd, buf, 5);
-    printf("%d bytes written\n", bytes);
 
     // Wait until all bytes have been written to the serial port
     sleep(1);
