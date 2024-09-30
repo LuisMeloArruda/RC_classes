@@ -21,6 +21,13 @@
 
 #define BUF_SIZE 256
 
+// Connection establishment macros
+#define FLAG 0x7E
+#define SND_SNT 0x03 // Frames sent by sender
+#define RCV_ANS 0x03 // Answers from the receiver 
+#define SET 0x03
+#define UA 0x07
+
 volatile int STOP = FALSE;
 
 int main(int argc, char *argv[])
@@ -93,11 +100,11 @@ int main(int argc, char *argv[])
     unsigned char buf[BUF_SIZE] = {0};
     
     // Send SET command
-    buf[0] = 0x7E;
-    buf[1] = 0x03;
-    buf[2] = 0x03;
+    buf[0] = FLAG;
+    buf[1] = SND_SNT;
+    buf[2] = SET;
     buf[3] = buf[1] ^ buf[2];
-    buf[4] = 0x7E;
+    buf[4] = FLAG;
  
     printf("var = 0x%02X\n", buf[0]);
 
@@ -113,7 +120,6 @@ int main(int argc, char *argv[])
 
     // Read print from Receiver
     bytes = read(fd, buf, 5);
-    buf[bytes] = '\0';
 
     // Print out received message in hexadecimal
     printf(":");
@@ -122,15 +128,15 @@ int main(int argc, char *argv[])
     }
     printf(":\n");
 
-    if (buf[0] != 0x7E) {
+    if (buf[0] != FLAG) {
         printf("First byte is not flag 0x7E"); 
         return 1;  
     }
-    if (buf[1] != 0x03) {
-        printf("Frame was not sent by Receiver");
+    if (buf[1] != RCV_ANS) {
+        printf("Answer was not sent by Receiver");
         return 1;    
     }
-    if (buf[2] != 0x07) {
+    if (buf[2] != UA) {
         printf("Control wasn't UA");
         return 1;    
     }
@@ -138,7 +144,7 @@ int main(int argc, char *argv[])
         printf("Message was corrupted");
         return 1;
     }
-    if (buf[4] != 0x7E) {
+    if (buf[4] != FLAG) {
         printf("Last byte is not flag 0x7E");    
         return 1;
     }

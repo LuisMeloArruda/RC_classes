@@ -21,6 +21,13 @@
 
 #define BUF_SIZE 256
 
+// Connection establishment macros
+#define FLAG 0x7E
+#define SND_SNT 0x03 // Frames sent by sender
+#define RCV_ANS 0x03 // Answers from the receiver 
+#define SET 0x03
+#define UA 0x07
+
 volatile int STOP = FALSE;
 
 int main(int argc, char *argv[])
@@ -89,11 +96,10 @@ int main(int argc, char *argv[])
     printf("New termios structure set\n");
 
     // Loop for input
-    unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
+    unsigned char buf[BUF_SIZE] = {0};
 
     // Read establishment message
     int bytes = read(fd, buf, 5);
-    buf[bytes] = '\0'; // Set end of string to '\0', so we can printf
     
     // Print out received message in hexadecimal
     printf(":");
@@ -103,15 +109,15 @@ int main(int argc, char *argv[])
     printf(":\n");
     
     // Verify message
-    if (buf[0] != 0x7E) {
+    if (buf[0] != FLAG) {
         printf("First byte is not flag 0x7E\n");
         return 1;
     }        
-    if (buf[1] != 0x03) {
+    if (buf[1] != SND_SNT) {
         printf("Frame was not sent by Sender\n");
         return 1;
     }
-    if (buf[2] != 0x03) {
+    if (buf[2] != SET) {
         printf("Control wasn't SET\n");
         return 1;
     }
@@ -119,7 +125,7 @@ int main(int argc, char *argv[])
         printf("Message was corrupted\n");
         return 1;
     }
-    if (buf[4] != 0x7E) {
+    if (buf[4] != FLAG) {
         printf("Last byte is not flag 0x7E\n");
         return 1;
     }
@@ -127,11 +133,11 @@ int main(int argc, char *argv[])
     printf("Message was verified and is correct\n");
     
     // Send UA command
-    buf[0] = 0x7E;
-    buf[1] = 0x03;
-    buf[2] = 0x07;
+    buf[0] = FLAG;
+    buf[1] = RCV_ANS;
+    buf[2] = UA;
     buf[3] = buf[1] ^ buf[2];
-    buf[4] = 0x7E;
+    buf[4] = FLAG;
     
     bytes = write(fd, buf, 5);
     
