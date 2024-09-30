@@ -45,13 +45,6 @@ int sp_denominator;
 
 int verify_message(unsigned char buf[5])
 {   
-    //Print out received message in hexadecimal
-    printf(":");
-    for (int i = 0; i < 5; i++) {
-        printf("0x%02X ", buf[i]);    
-    }
-    printf(":\n");
-
     if (buf[0] != FLAG) {
         printf("First byte is not flag 0x7E"); 
         return FALSE;  
@@ -81,20 +74,16 @@ int verify_message(unsigned char buf[5])
 void send_set_cmd()
 {
     // Create buffer
-    unsigned char buf[BUF_SIZE] = {0};
+    unsigned char buf[15] = {0};
     
     // Send SET command
     buf[0] = FLAG;
     buf[1] = SND_SNT;
     buf[2] = SET;
-    buf[3] = buf[1] ^ buf[2];
+    buf[3] = SND_SNT ^ SET;
     buf[4] = FLAG;
 
-    // In non-canonical mode, '\n' does not end the writing.
-    // Test this condition by placing a '\n' in the middle of the buffer.
-    // The whole buffer must be sent even with the '\n'.
-
-    int bytes = write(sp_denominator, buf, 5);
+    int bytes = write(sp_denominator, buf, 15);
 
     // Wait until all bytes have been written to the serial port
     sleep(1);
@@ -202,10 +191,12 @@ int main(int argc, char *argv[])
     while (TRUE) {
         if (alarmCount >= MAX_RETRY) break;
 
-        unsigned char read_byte[1];
+        unsigned char read_byte[1] = {0};
 
         int bytes = read(sp_denominator, read_byte, 1);
         if (bytes == 0) continue;
+
+        printf("Read byte: 0x%02X \n", read_byte[0]);
 
         perm_buff[index++] = read_byte[0];
         if (index >= 5) {

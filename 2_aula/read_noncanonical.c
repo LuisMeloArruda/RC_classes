@@ -28,6 +28,41 @@
 #define SET 0x03
 #define UA 0x07
 
+// Serial port variables
+int sp_denominator;
+
+// State machine variables
+enum state_machine{
+    START,
+    FLAG_RCV,
+    A_RCV,
+    C_RCV,
+    BCC_OK,
+    STOP
+};
+enum state_machine state = START;
+
+
+void send_ua_cmd()
+{   
+    // Create buffer
+    unsigned char buf[5] = {0};
+
+    // Send UA command
+    buf[0] = FLAG;
+    buf[1] = RCV_ANS;
+    buf[2] = UA;
+    buf[3] = RCV_ANS ^ UA;
+    buf[4] = FLAG;
+    
+    int bytes = write(sp_denominator, buf, 5);
+
+    // Wait until all bytes have been written to the serial port
+    sleep(1);
+
+    printf("Sent UA command\n");
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -46,7 +81,7 @@ int main(int argc, char *argv[])
 
     // Open serial port device for reading and writing and not as controlling tty
     // because we don't want to get killed if linenoise sends CTRL-C.
-    int sp_denominator = open(serialPortName, O_RDWR | O_NOCTTY);
+    sp_denominator = open(serialPortName, O_RDWR | O_NOCTTY);
     if (sp_denominator < 0)
     {
         perror(serialPortName);
@@ -73,7 +108,7 @@ int main(int argc, char *argv[])
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
     newtio.c_cc[VTIME] = 0; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 5;  // Blocking read until 5 chars received
+    newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -94,54 +129,47 @@ int main(int argc, char *argv[])
 
     printf("New termios structure set\n");
 
-    // Create buffer
-    unsigned char buf[BUF_SIZE] = {0};
+    while (state != STOP) {
+        // Create buffer
+        unsigned char buf[1] = {0};
 
-    // Read establishment message
-    int bytes = read(sp_denominator, buf, 5);
-    
-    // Print out received message in hexadecimal
-    printf(":");
-    for (int i = 0; i<5; i++) {
-        printf("0x%02X ", buf[i]);                               
+        // Read byte
+        int bytes = read(sp_denominator, buf, 1);
+        if (bytes == 0) continue;
+        unsigned char read_byte = buf[0];
+
+        printf("Read byte: 0x%02X \n", read_byte);
+
+        // State machine logic
+        switch (state)
+        {
+            case START:
+                if (read_byte == FLAG) state = FLAG_RCV;
+                break;
+            case FLAG_RCV:
+                if (read_byte == SND_SNT) state = A_RCV;
+                else if (read_byte != FLAG) state = START;
+                break;
+            case A_RCV:
+                if (read_byte == SET) state = C_RCV;
+                else if (read_byte == FLAG) state = FLAG_RCV;
+                else state = START;
+                break;
+            case C_RCV:
+                if (read_byte == (SND_SNT ^ SET)) state = BCC_OK;
+                else if (read_byte == FLAG) state = FLAG_RCV;
+                else state = START;
+                break;
+            case BCC_OK:
+                if (read_byte == FLAG) state = STOP;
+                else state = START;
+        }
     }
-    printf(":\n");
-    
-    // Verify message
-    if (buf[0] != FLAG) {
-        printf("First byte is not flag 0x7E\n");
-        return 1;
-    }        
-    if (buf[1] != SND_SNT) {
-        printf("Frame was not sent by Sender\n");
-        return 1;
-    }
-    if (buf[2] != SET) {
-        printf("Control wasn't SET\n");
-        return 1;
-    }
-    if (buf[3] != (buf[1] ^ buf[2])) {
-        printf("Message was corrupted\n");
-        return 1;
-    }
-    if (buf[4] != FLAG) {
-        printf("Last byte is not flag 0x7E\n");
-        return 1;
-    }
-    
-    printf("Message was verified and is correct\n");
-    
+
+    printf("Message received and verified\n");
+
     // Send UA command
-    buf[0] = FLAG;
-    buf[1] = RCV_ANS;
-    buf[2] = UA;
-    buf[3] = buf[1] ^ buf[2];
-    buf[4] = FLAG;
-    
-    //bytes = write(sp_denominator, buf, 5);
-    
-    // Wait until all bytes have been written to the serial port
-    sleep(1);
+    send_ua_cmd();
 
     // Restore the old port settings
     if (tcsetattr(sp_denominator, TCSANOW, &oldtio) == -1)
