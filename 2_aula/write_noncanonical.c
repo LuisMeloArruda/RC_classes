@@ -29,6 +29,9 @@
 #define SET 0x03
 #define UA 0x07
 
+// Protocol macros
+#define MAX_RETRY 3
+
 // Alarm macros
 #define ALARM_TIME 3
 
@@ -40,41 +43,38 @@ int alarmCount = 0;
 int sp_denominator;
 
 
-int read_frame()
-{
+int verify_message(unsigned char buf[5])
+{   
+    //Print out received message in hexadecimal
+    printf(":");
+    for (int i = 0; i < 5; i++) {
+        printf("0x%02X ", buf[i]);    
+    }
+    printf(":\n");
 
-    // bytes = read(sp_denominator, buf, 5);
+    if (buf[0] != FLAG) {
+        printf("First byte is not flag 0x7E"); 
+        return FALSE;  
+    }
+    if (buf[1] != RCV_ANS) {
+        printf("Answer was not sent by Receiver");
+        return FALSE;    
+    }
+    if (buf[2] != UA) {
+        printf("Control wasn't UA");
+        return FALSE;    
+    }
+    if (buf[3] != (buf[1] ^ buf[2])) {
+        printf("Message was corrupted");
+        return FALSE;
+    }
+    if (buf[4] != FLAG) {
+        printf("Last byte is not flag 0x7E");    
+        return FALSE;
+    }
 
-    // // Print out received message in hexadecimal
-    // printf(":");
-    // for (int i = 0; i < 5; i++) {
-    //     printf("0x%02X ", buf[i]);    
-    // }
-    // printf(":\n");
-
-    // if (buf[0] != FLAG) {
-    //     printf("First byte is not flag 0x7E"); 
-    //     return 1;  
-    // }
-    // if (buf[1] != RCV_ANS) {
-    //     printf("Answer was not sent by Receiver");
-    //     return 1;    
-    // }
-    // if (buf[2] != UA) {
-    //     printf("Control wasn't UA");
-    //     return 1;    
-    // }
-    // if (buf[3] != (buf[1] ^ buf[2])) {
-    //     printf("Message was corrupted");
-    //     return 1;
-    // }
-    // if (buf[4] != FLAG) {
-    //     printf("Last byte is not flag 0x7E");    
-    //     return 1;
-    // }
-
-    // printf("Message was verified and is correct \n");
-    return FALSE;
+    printf("Message was verified and is correct \n");
+    return TRUE;
 }
 
 
@@ -196,11 +196,23 @@ int main(int argc, char *argv[])
     alarm(ALARM_TIME); // Set alarm to be triggered in ALARM_TIME seconds
     alarmEnabled = TRUE;
 
-    // Read print from Receiver
+    // Read response from Receiver
+    unsigned char perm_buff[5] = {0}; // Create permanent buffer
+    int index = 0;
     while (TRUE) {
-        if (alarmCount >= 3) break;
-        if (read_frame()) break;
-    } // Infinite loop to simulate that UA is never sent back
+        if (alarmCount >= MAX_RETRY) break;
+
+        unsigned char read_byte[1];
+
+        int bytes = read(sp_denominator, read_byte, 1);
+        if (bytes == 0) continue;
+
+        perm_buff[index++] = read_byte[0];
+        if (index >= 5) {
+            index = 0;
+            if (verify_message(perm_buff)) break;
+        }
+    }
     
     // Turn off alarm
     alarm(0);

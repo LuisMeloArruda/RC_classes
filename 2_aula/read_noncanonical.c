@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
     buf[3] = buf[1] ^ buf[2];
     buf[4] = FLAG;
     
-    bytes = write(sp_denominator, buf, 5);
+    //bytes = write(sp_denominator, buf, 5);
     
     // Wait until all bytes have been written to the serial port
     sleep(1);
